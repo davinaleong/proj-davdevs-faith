@@ -14,7 +14,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="relative min-h-screen flex flex-col bg-white">
       {/* Header Background Images - Top */}
-      <div className="absolute top-0 left-0 right-0 z-0 h-[300px] w-full">
+      <div className="absolute top-0 left-0 right-0 z-0 h-[600px] w-full">
         {/* Mobile/Vertical Background */}
         <div className="block md:hidden h-full w-full">
           <Image

@@ -1,51 +1,137 @@
+/**
+ * Core blog post service
+ * Handles reading, parsing, and retrieving blog posts from the file system
+ */
+
 import fs from "fs"
 import path from "path"
 import matter from "gray-matter"
-import { FEATURED_POSTS, isFeatured } from "../config/featured-posts"
 
-export interface Post {
-  title: string
-  slug: string
-  description: string
-  date: string
-  author: string
-  tags: string[]
-  featured: boolean
-  readingTime: number
-  content: string
+import type { Post } from "./types"
+import {
+  FEATURED_POSTS,
+  PAGINATION_CONFIG,
+  PATHS,
+  DEFAULT_POST_VALUES,
+  SUPPORTED_EXTENSIONS,
+} from "./constants"
+import {
+  isFeatured,
+  validatePostData,
+  sortPostsByDate,
+  filterPostsByDateRange,
+  getDateBoundaries,
+  applyDefaultLimit,
+  calculateReadingTime,
+  generateExcerpt,
+} from "./utils"
+
+// Cache for posts to avoid repeated file system reads
+let postsCache: Post[] | null = null
+let cacheTimestamp: number = 0
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in development
+
+const postsDirectory = path.join(process.cwd(), PATHS.postsDirectory)
+
+/**
+ * Check if posts directory exists and create cache key
+ */
+function ensurePostsDirectory(): boolean {
+  try {
+    return fs.existsSync(postsDirectory)
+  } catch {
+    return false
+  }
 }
 
-const postsDirectory = path.join(process.cwd(), "src/app/content/posts")
+/**
+ * Get all post files from the directory
+ */
+function getPostFiles(): string[] {
+  if (!ensurePostsDirectory()) {
+    console.warn(`Posts directory not found: ${postsDirectory}`)
+    return []
+  }
 
+  try {
+    return fs
+      .readdirSync(postsDirectory)
+      .filter((fileName) =>
+        SUPPORTED_EXTENSIONS.some((ext) => fileName.endsWith(ext))
+      )
+  } catch (error) {
+    console.error("Error reading posts directory:", error)
+    return []
+  }
+}
+
+/**
+ * Parse a single post file and return Post object
+ */
+function parsePostFile(fileName: string): Post | null {
+  try {
+    const slug = fileName.replace(/\.(mdx?|md)$/, "")
+    const fullPath = path.join(postsDirectory, fileName)
+    const fileContents = fs.readFileSync(fullPath, "utf8")
+    const { data, content } = matter(fileContents)
+
+    // Validate required fields
+    if (!validatePostData({ ...data, slug })) {
+      console.warn(`Invalid post data in ${fileName}`)
+      return null
+    }
+
+    const post: Post = {
+      slug,
+      content,
+      title: data.title || DEFAULT_POST_VALUES.title,
+      description: data.description || generateExcerpt(content),
+      date: data.date || new Date().toISOString().split("T")[0],
+      author: data.author || DEFAULT_POST_VALUES.author,
+      tags: Array.isArray(data.tags)
+        ? [...data.tags]
+        : [...DEFAULT_POST_VALUES.tags],
+      featured: Boolean(data.featured) || isFeatured(slug),
+      readingTime: data.readingTime || calculateReadingTime(content),
+    }
+
+    return post
+  } catch (error) {
+    console.error(`Error parsing post file ${fileName}:`, error)
+    return null
+  }
+}
+
+/**
+ * Get all posts with caching support
+ */
 export function getAllPosts(): Post[] {
-  const fileNames = fs.readdirSync(postsDirectory)
+  // Check cache validity (disabled in production for now)
+  if (process.env.NODE_ENV === "development" && postsCache && cacheTimestamp) {
+    if (Date.now() - cacheTimestamp < CACHE_DURATION) {
+      return postsCache
+    }
+  }
+
+  const fileNames = getPostFiles()
   const allPostsData = fileNames
-    .filter((name) => name.endsWith(".mdx"))
-    .map((fileName) => {
-      const slug = fileName.replace(/\.mdx$/, "")
-      const fullPath = path.join(postsDirectory, fileName)
-      const fileContents = fs.readFileSync(fullPath, "utf8")
-      const { data, content } = matter(fileContents)
+    .map(parsePostFile)
+    .filter((post): post is Post => post !== null)
 
-      return {
-        slug,
-        content,
-        title: data.title || "",
-        description: data.description || "",
-        date: data.date || "",
-        author: data.author || "",
-        tags: data.tags || [],
-        featured: data.featured || isFeatured(slug),
-        readingTime: data.readingTime || 0,
-      } as Post
-    })
+  const sortedPosts = sortPostsByDate(allPostsData)
 
-  // Sort posts by date (newest first)
-  return allPostsData.sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime()
-  })
+  // Update cache
+  if (process.env.NODE_ENV === "development") {
+    postsCache = sortedPosts
+    cacheTimestamp = Date.now()
+  }
+
+  return sortedPosts
 }
 
+/**
+ * Get all featured posts in the configured order
+ */
 export function getFeaturedPosts(): Post[] {
   const allPosts = getAllPosts()
   const featuredPosts: Post[] = []
@@ -60,7 +146,7 @@ export function getFeaturedPosts(): Post[] {
 
   // Then add any other posts marked as featured in their frontmatter
   for (const post of allPosts) {
-    if (post.featured && !featuredPosts.find((p) => p.slug === post.slug)) {
+    if (post.featured && !featuredPosts.some((p) => p.slug === post.slug)) {
       featuredPosts.push(post)
     }
   }
@@ -68,35 +154,39 @@ export function getFeaturedPosts(): Post[] {
   return featuredPosts
 }
 
+/**
+ * Get a single post by its slug
+ */
 export function getPostBySlug(slug: string): Post | null {
-  try {
-    const fullPath = path.join(postsDirectory, `${slug}.mdx`)
-    const fileContents = fs.readFileSync(fullPath, "utf8")
-    const { data, content } = matter(fileContents)
-
-    return {
-      slug,
-      content,
-      title: data.title || "",
-      description: data.description || "",
-      date: data.date || "",
-      author: data.author || "",
-      tags: data.tags || [],
-      featured: data.featured || isFeatured(slug),
-      readingTime: data.readingTime || 0,
-    } as Post
-  } catch {
-    return null
+  // First try to get from cache
+  const allPosts = getAllPosts()
+  const cachedPost = allPosts.find((post) => post.slug === slug)
+  if (cachedPost) {
+    return cachedPost
   }
+
+  // If not in cache, try to read directly
+  for (const ext of SUPPORTED_EXTENSIONS) {
+    try {
+      const fileName = `${slug}${ext}`
+      const fullPath = path.join(postsDirectory, fileName)
+
+      if (fs.existsSync(fullPath)) {
+        return parsePostFile(fileName)
+      }
+    } catch (error) {
+      console.error(`Error reading post ${slug}:`, error)
+    }
+  }
+
+  return null
 }
 
 /**
  * Get the latest posts (newest first)
- * @param limit - Maximum number of posts to return (default: 10)
- * @param excludeFeatured - Whether to exclude featured posts (default: false)
  */
 export function getLatestPosts(
-  limit: number = 10,
+  limit: number = PAGINATION_CONFIG.defaultLatestLimit,
   excludeFeatured: boolean = false
 ): Post[] {
   const allPosts = getAllPosts()
@@ -104,29 +194,28 @@ export function getLatestPosts(
     ? allPosts.filter((post) => !post.featured)
     : allPosts
 
-  return posts.slice(0, limit)
+  return posts.slice(0, applyDefaultLimit(limit))
 }
 
 /**
  * Get recent posts from the last N days
- * @param days - Number of days to look back (default: 30)
- * @param limit - Maximum number of posts to return (default: 10)
  */
-export function getRecentPosts(days: number = 30, limit: number = 10): Post[] {
+export function getRecentPosts(
+  days: number = PAGINATION_CONFIG.recentPostsDays,
+  limit: number = PAGINATION_CONFIG.defaultLatestLimit
+): Post[] {
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
   const allPosts = getAllPosts()
-  return allPosts
-    .filter((post) => new Date(post.date) >= cutoffDate)
-    .slice(0, limit)
+  return filterPostsByDateRange(allPosts, cutoffDate, new Date()).slice(
+    0,
+    applyDefaultLimit(limit)
+  )
 }
 
 /**
  * Get posts by date range
- * @param startDate - Start date (YYYY-MM-DD format)
- * @param endDate - End date (YYYY-MM-DD format)
- * @param limit - Maximum number of posts to return (default: all)
  */
 export function getPostsByDateRange(
   startDate: string,
@@ -138,42 +227,38 @@ export function getPostsByDateRange(
   end.setHours(23, 59, 59, 999) // Include the entire end date
 
   const allPosts = getAllPosts()
-  const filteredPosts = allPosts.filter((post) => {
-    const postDate = new Date(post.date)
-    return postDate >= start && postDate <= end
-  })
+  const filteredPosts = filterPostsByDateRange(allPosts, start, end)
 
   return limit ? filteredPosts.slice(0, limit) : filteredPosts
 }
 
 /**
  * Get posts from current month
- * @param limit - Maximum number of posts to return (default: all)
  */
 export function getCurrentMonthPosts(limit?: number): Post[] {
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  const { start, end } = getDateBoundaries(
+    now.getFullYear(),
+    now.getMonth() + 1
+  )
 
   return getPostsByDateRange(
-    startOfMonth.toISOString().split("T")[0],
-    endOfMonth.toISOString().split("T")[0],
+    start.toISOString().split("T")[0],
+    end.toISOString().split("T")[0],
     limit
   )
 }
 
 /**
  * Get posts from current year
- * @param limit - Maximum number of posts to return (default: all)
  */
 export function getCurrentYearPosts(limit?: number): Post[] {
   const now = new Date()
-  const startOfYear = new Date(now.getFullYear(), 0, 1)
-  const endOfYear = new Date(now.getFullYear(), 11, 31)
+  const { start, end } = getDateBoundaries(now.getFullYear())
 
   return getPostsByDateRange(
-    startOfYear.toISOString().split("T")[0],
-    endOfYear.toISOString().split("T")[0],
+    start.toISOString().split("T")[0],
+    end.toISOString().split("T")[0],
     limit
   )
 }

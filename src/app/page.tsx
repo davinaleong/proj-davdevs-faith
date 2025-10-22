@@ -1,4 +1,4 @@
-import { getFeaturedPosts, getLatestPosts } from "./lib/posts"
+import { getFeaturedPosts, getLatestPosts } from "./lib"
 import PostCard from "./components/PostCard"
 import { FileText } from "lucide-react"
 
