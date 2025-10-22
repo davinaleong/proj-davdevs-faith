@@ -16,6 +16,19 @@
   font-style: italic;
 }
 
+/* Fix for gradient class compatibility */
+.bg-linear-to-r {
+  background: linear-gradient(to right, var(--tw-gradient-stops));
+}
+
+/* Ensure background images don't get cut off */
+header,
+footer {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 :root {
   --background: theme("colors.gray.100");
   --foreground: theme("colors.gray.900");
