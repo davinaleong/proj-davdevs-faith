@@ -12,11 +12,11 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Background Images */}
-      <div className="absolute top-0 z-0 min-height-[150px] w-full">
+    <div className="relative min-h-screen flex flex-col bg-white">
+      {/* Header Background Images - Top */}
+      <div className="absolute top-0 left-0 right-0 z-0 h-[300px] w-full">
         {/* Mobile/Vertical Background */}
-        <div className="block md:hidden">
+        <div className="block md:hidden h-full w-full">
           <Image
             src={bgHeaderMobile}
             alt="Header background mobile"
@@ -26,7 +26,7 @@ export default function Layout({ children }: LayoutProps) {
           />
         </div>
         {/* Desktop/Horizontal Background */}
-        <div className="hidden md:block">
+        <div className="hidden md:block h-full w-full">
           <Image
             src={bgHeaderDesktop}
             alt="Header background desktop"
@@ -37,10 +37,10 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </div>
 
-      {/* Background Images */}
-      <div className="absolute button-0 z-0 min-height-[150px] w-full">
+      {/* Footer Background Images - Bottom */}
+      <div className="absolute bottom-0 left-0 right-0 z-0 h-[300px] w-full">
         {/* Mobile/Vertical Background */}
-        <div className="block md:hidden">
+        <div className="block md:hidden h-full w-full">
           <Image
             src={bgFooterMobile}
             alt="Footer background mobile"
@@ -49,7 +49,7 @@ export default function Layout({ children }: LayoutProps) {
           />
         </div>
         {/* Desktop/Horizontal Background */}
-        <div className="hidden md:block">
+        <div className="hidden md:block h-full w-full">
           <Image
             src={bgFooterDesktop}
             alt="Footer background desktop"

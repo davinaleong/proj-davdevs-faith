@@ -2,12 +2,12 @@ import { FileText, Check } from "lucide-react"
 
 export default function Home() {
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12">
+    <div className="max-w-7xl mx-auto px-4 py-4">
       <div className="text-center mb-16">
-        <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-          Welcome to <span className="text-blue-600">Dav/Devs Faith</span>
+        <h1 className="text-5xl md:text-6xl font-bold text-gray-black mb-6">
+          Dav/Devs Faith
         </h1>
-        <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+        <p className="max-w-3xl mx-auto leading-relaxed">
           A faith-based platform exploring the intersection of technology and
           spirituality. Join me on this journey of discovering God&apos;s
           presence in our digital age.

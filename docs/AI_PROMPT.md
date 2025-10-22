@@ -21,6 +21,9 @@ Generate the layouts and components to do this:
 		- Post content
 		- Home button
 - Footer
+	- Layout
+		- First row: (center-aligned) Dav/Devs Faith (c) Davina Leong, 2025 (or a more modern copyright statement)
+		- Second row: (center-aligned) Terms & Conditions | Privacy Policy
 	- Copyright content
 	- Link to T&C
 	- Link to Privacy Policy
