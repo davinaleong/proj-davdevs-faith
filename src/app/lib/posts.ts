@@ -1,6 +1,7 @@
 import fs from "fs"
 import path from "path"
 import matter from "gray-matter"
+import { FEATURED_POSTS, isFeatured } from "../config/featured-posts"
 
 export interface Post {
   title: string
@@ -34,7 +35,7 @@ export function getAllPosts(): Post[] {
         date: data.date || "",
         author: data.author || "",
         tags: data.tags || [],
-        featured: data.featured || false,
+        featured: data.featured || isFeatured(slug),
         readingTime: data.readingTime || 0,
       } as Post
     })
@@ -47,7 +48,24 @@ export function getAllPosts(): Post[] {
 
 export function getFeaturedPosts(): Post[] {
   const allPosts = getAllPosts()
-  return allPosts.filter((post) => post.featured)
+  const featuredPosts: Post[] = []
+
+  // First, add posts in the order specified in FEATURED_POSTS config
+  for (const slug of FEATURED_POSTS) {
+    const post = allPosts.find((p) => p.slug === slug)
+    if (post) {
+      featuredPosts.push({ ...post, featured: true })
+    }
+  }
+
+  // Then add any other posts marked as featured in their frontmatter
+  for (const post of allPosts) {
+    if (post.featured && !featuredPosts.find((p) => p.slug === post.slug)) {
+      featuredPosts.push(post)
+    }
+  }
+
+  return featuredPosts
 }
 
 export function getPostBySlug(slug: string): Post | null {
