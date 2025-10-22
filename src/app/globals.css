@@ -30,7 +30,7 @@ footer {
 }
 
 :root {
-  --background: theme("colors.gray.100");
+  --background: theme("colors.slate.50");
   --foreground: theme("colors.gray.900");
   --font-sans: "Montserrat", sans-serif;
   --flow-space: 1em;
